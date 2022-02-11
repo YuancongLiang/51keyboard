@@ -1,0 +1,4 @@
+"STARTUP.obj",
+"keyboard.obj" 
+TO "keyboard" 
+RAMSIZE(256) 

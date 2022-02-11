@@ -1,0 +1,692 @@
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE KEYBOARD
+OBJECT MODULE PLACED IN keyboard.OBJ
+COMPILER INVOKED BY: D:\keil\C51\BIN\C51.EXE keyboard.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include"STC15W4K32S4.h"
+   2          #include <intrins.h>
+   3          #define S1_S0 0x40              //P_SW1.6
+   4          #define S1_S1 0x80              //P_SW1.7
+   5          #define S4_S0 0x04              //P_SW2.2
+   6          #define S4TI 0x01
+   7          unsigned char tierline[6];
+   8          unsigned char keydata[6];
+   9          unsigned int a=0;
+  10          void rowjudge();
+  11          void KeyScan();
+  12          sbit tier0=P0^6;
+  13          sbit tier1=P0^5; 
+  14          sbit tier2=P0^4;
+  15          sbit tier3=P0^1;
+  16          sbit tier4=P0^0;
+  17          sbit tier5=P4^6;                
+  18          sbit row0=P4^5;
+  19          sbit row1=P2^7;
+  20          sbit row2=P2^6;
+  21          sbit row3=P2^5;
+  22          sbit row4=P2^4;
+  23          sbit row5=P2^3;
+  24          sbit row6=P2^2;
+  25          sbit row7=P2^1;
+  26          sbit row8=P2^0;
+  27          sbit row9=P4^4;
+  28          sbit row10=P4^3;
+  29          sbit row11=P4^2;
+  30          sbit row12=P4^1;
+  31          sbit row13=P3^7;
+  32          sbit row14=P3^6;
+  33          sbit row15=P3^5;
+  34          sbit row16=P3^4;
+  35          sbit row17=P3^3;
+  36          unsigned char senddata[14]={0x57,0xAB,0,0x02,0x08,0,0,0,0,0,0,0,0,0x0c};
+  37          unsigned char code senddatainit[14]={0x57,0xAB,0,0x02,0x08,0,0,0,0,0,0,0,0,0x0c};
+  38          //unsigned char code senddatainit[14]={0x57,0xAB,0,0x02,0x08,0,0,0x04,0,0,0,0,0,0x10};
+  39          unsigned char code resetdata[4]={0x57,0xAB,0x00,0x11};  
+  40          unsigned char code key[109]={
+  41          0x00,0x62,0x63,0x58,0xE0/*left ctrl*/,0xE3/*left windows*/,0xE2/*left alt*/,0x2C,0xE6/*right alt*/,0xE7/*r
+             -ight windows*/,0x65/*menu键*/,0xE4/*right ctrl*/,0x50,0x51,0x4F,0x52,0x4C,0x4D,0x4E,
+  42          0x59,0x5A,0x5B,0xE1/*left shift*/,0x1D,0x1B,0x06,0x19,0x05,0x11,0x10,0x36,0x37,0x38,0xE5/*right shift*/,0x
+             -49,0x4A,0x4B,
+  43          0x5C,0x5D,0x5E,0x57,0x39,0x04,0x16,0x07,0x09,0x0A,0x0B,0x0D,0x0E,0x0F,0x33,0x34,0x28,0,
+  44          0x5F,0x60,0x61,0x2B,0x14,0x1A,0x08,0x15,0x17,0x1C,0x18,0x0C,0x12,0x13,0x2F,0x30,0x31,0,
+  45          0x53,0x54,0x55,0x56,0x35,0x1E,0x1F,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x2D,0x2E,0x2A,                                                                 
+  46          0x29,0x3A,0x3B,0x3C,0x3D,0x3E,0x3F,0x40,0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48,0,0};
+  47                  void Timer0Init(void)             //5微秒
+  48          {
+  49   1              AUXR |= 0x80;           
+  50   1              TMOD &= 0xF0;           
+  51   1              TMOD |= 0x02;           
+  52   1              TL0 = 0x91;             
+  53   1              TH0 = 0x91;             
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 2   
+
+  54   1              TF0 = 0;                
+  55   1              EA=1;
+  56   1              ET0=1;
+  57   1              TR0 = 1;                
+  58   1      }
+  59          void UartInit1(void)            //57600bps@22.1184MHz
+  60          {
+  61   1      /*      ACC = P_SW1;
+  62   1              ACC &= ~(S1_S0 | S1_S1);    //S1_S0=0 S1_S1=1
+  63   1              ACC |= S1_S1;               //(P1.6/RxD_3, P1.7/TxD_3)           
+  64   1              P_SW1 = ACC;                              */
+  65   1              PCON &= 0x7F;           //波特率不倍速
+  66   1              SCON = 0x50;            //8位数据,可变波特率
+  67   1              AUXR |= 0x40;           //定时器1时钟为Fosc,即1T
+  68   1              AUXR &= 0xFE;           //串口1选择定时器1为波特率发生器
+  69   1              TMOD &= 0x0F;           //清除定时器1模式位
+  70   1              TMOD |= 0x20;           //设定定时器1为8位自动重装方式
+  71   1              TL1 = 0xF4;             //设定定时初值
+  72   1              TH1 = 0xF4;             //设定定时器重装值
+  73   1              ET1 = 0;                //禁止定时器1中断
+  74   1              TR1 = 1;                //启动定时器1
+  75   1              ES=1;
+  76   1              TI=0;
+  77   1              RI=0; 
+  78   1      }
+  79          /*void UartInit2(void)          //19200bps@22.1184MHz
+  80          {
+  81                  P_SW2 &= ~S4_S0;            //S4_S0=0 (P0.2/RxD4, P0.3/TxD4)
+  82                  S4CON = 0x10;           //8位数据,可变波特率
+  83                  S4CON &= 0xBF;          //串口4选择定时器2为波特率发生器
+  84                  AUXR |= 0x04;           //定时器2时钟为Fosc,即1T
+  85                  T2L = 0xE0;             //设定定时初值
+  86                  T2H = 0xFE;             //设定定时初值
+  87                  AUXR |= 0x10;           //启动定时器2                      
+  88                  IE2 = 0x10;                 //使能串口4中断
+  89          }                                                                                         */
+  90                                                          
+  91          void intInit()
+  92          {
+  93   1              EX0=1;
+  94   1              IT0=1;
+  95   1      
+  96   1      }
+  97          void IOInit()
+  98          {
+  99   1              P0M0=0x00;
+ 100   1              P0M1=0x00;
+ 101   1              P1M0=0x00;
+ 102   1              P1M1=0x00;
+ 103   1              P2M0=0x00;
+ 104   1              P2M1=0x00;                
+ 105   1              P3M0=0x00;
+ 106   1              P3M1=0x00;
+ 107   1              P4M0=0x00;
+ 108   1              P4M1=0x00;              
+ 109   1      }
+ 110          void main()
+ 111          {
+ 112   1              Timer0Init();
+ 113   1              UartInit1();
+ 114   1      //      UartInit2();
+ 115   1              intInit();
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 3   
+
+ 116   1              IOInit();
+ 117   1              while(1);
+ 118   1      }
+ 119          void Delay1ms()         //@22.1184MHz
+ 120          {
+ 121   1              unsigned char i, j;
+ 122   1      
+ 123   1              i = 22;
+ 124   1              j = 128;
+ 125   1              do
+ 126   1              {
+ 127   2                      while (--j);
+ 128   2              } while (--i);
+ 129   1      }
+ 130          void tierdefine(unsigned char i)
+ 131          {
+ 132   1              tier0=tier1=tier2=tier3=tier4=tier5=i;
+ 133   1      }                                 
+ 134          void rowdefine(unsigned char i)
+ 135          {
+ 136   1              row0=row1=row2=row3=row4=row5=row6=row7=row8=row9=row10=row11=row12=row13=row14=row15=row16=row17=i;
+ 137   1      }
+ 138          void tierinit()
+ 139          {
+ 140   1              tierline[0]=tierline[1]=tierline[2]=tierline[3]=tierline[4]=tierline[5]=0;
+ 141   1      }
+ 142          void tierjudge()
+ 143          {
+ 144   1              if(tier0==0)
+ 145   1              tierline[0]=1;
+ 146   1              if(tier1==0)
+ 147   1              tierline[1]=2;
+ 148   1              if(tier2==0)
+ 149   1              tierline[2]=3;
+ 150   1              if(tier3==0)
+ 151   1              tierline[3]=4;
+ 152   1              if(tier4==0)
+ 153   1              tierline[4]=5;
+ 154   1              if(tier5==0)
+ 155   1              tierline[5]=6;
+ 156   1      }
+ 157          void KeyScan()
+ 158          {
+ 159   1              unsigned char i,j;
+ 160   1              rowdefine(0);                           //列输出低电平
+ 161   1              tierdefine(1);                          //行输出高电平
+ 162   1              if(tier0==1&&tier1==1&&tier2==1&&tier3==1&&tier4==1&&tier5==1)
+ 163   1              _nop_();                                                  //检测有无行为低电平，若无则跳过
+ 164   1              else                                            //有             
+ 165   1              {
+ 166   2                      Delay1ms();                             //消抖
+ 167   2                      Delay1ms();                             //消抖           
+ 168   2                      if(tier0==0||tier1==0||tier2==0||tier3==0||tier4==0||tier5==0)           
+ 169   2                      {                                                 //再次检测有无行为低电平，若无则跳过，若有则进入if结构
+ 170   3                              rowdefine(1);
+ 171   3                              tierdefine(1);          //行输出高电平
+ 172   3                              Delay1ms();                             //消抖
+ 173   3                              Delay1ms();                             //消抖
+ 174   3                              Delay1ms();                             //消抖
+ 175   3                              Delay1ms();                             //消抖
+ 176   3                              Delay1ms();                             //消抖    
+ 177   3                              for(i=0;i<6;i++)
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 4   
+
+ 178   3                              keydata[i]=0;
+ 179   3                              row17=0;
+ 180   3                              _nop_();                   
+ 181   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 182   3                              row17=1;                         //将行0设置为高电平
+ 183   3                              for(i=0;i<6;i++)                //循环          
+ 184   3                              {
+ 185   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 186   4                                      {
+ 187   5                                              for(j=0;j<6;j++)
+ 188   5                                              {
+ 189   6                                                      if(keydata[j]==0)
+ 190   6                                                      {
+ 191   7                                                              keydata[j]=(tierline[i]-1)*18+18;
+ 192   7                                                              break;
+ 193   7                                                      }         //则根据列与行的关系，计算其坐标
+ 194   6                                              }
+ 195   5                                      }
+ 196   4                              }
+ 197   3                              tierinit();                                       //将列记录数组清空
+ 198   3                              tierdefine(1);          //行输出高电平
+ 199   3      
+ 200   3      
+ 201   3      
+ 202   3                              row2=0;
+ 203   3                              _nop_();                   
+ 204   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 205   3                              row2=1;                  //将行0设置为高电平
+ 206   3                              for(i=0;i<6;i++)                //循环          
+ 207   3                              {
+ 208   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 209   4                                      {
+ 210   5                                              for(;j<6;j++)
+ 211   5                                              {
+ 212   6                                                      if(keydata[j]==0)
+ 213   6                                                      {
+ 214   7                                                              keydata[j]=(tierline[i]-1)*18+3;
+ 215   7                                                              break;
+ 216   7                                                      }         //则根据列与行的关系，计算其坐标
+ 217   6                                              }
+ 218   5                                      }
+ 219   4                              }
+ 220   3                              tierinit();                                       //将列记录数组清空
+ 221   3                              tierdefine(1);          //行输出高电平
+ 222   3                              
+ 223   3                                        
+ 224   3                              row3=0;
+ 225   3                              _nop_();                   
+ 226   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 227   3                              row3=1;                  //将行0设置为高电平
+ 228   3                              for(i=0;i<6;i++)                //循环          
+ 229   3                              {
+ 230   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 231   4                                      {
+ 232   5                                              for(;j<6;j++)
+ 233   5                                              {
+ 234   6                                                      if(keydata[j]==0)
+ 235   6                                                      {
+ 236   7                                                              keydata[j]=(tierline[i]-1)*18+4;
+ 237   7                                                              break;
+ 238   7                                                      }         //则根据列与行的关系，计算其坐标
+ 239   6                                              }
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 5   
+
+ 240   5                                      }
+ 241   4                              }
+ 242   3                              tierinit();                                       //将列记录数组清空
+ 243   3                              tierdefine(1);          //行输出高电平
+ 244   3                                        
+ 245   3                              row4=0;
+ 246   3                              _nop_();                   
+ 247   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 248   3                              row4=1;                  //将行0设置为高电平
+ 249   3                              for(i=0;i<6;i++)                //循环          
+ 250   3                              {
+ 251   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 252   4                                      {
+ 253   5                                              for(;j<6;j++)
+ 254   5                                              {
+ 255   6                                                      if(keydata[j]==0)
+ 256   6                                                      {
+ 257   7                                                              keydata[j]=(tierline[i]-1)*18+5;
+ 258   7                                                              break;
+ 259   7                                                      }         //则根据列与行的关系，计算其坐标
+ 260   6                                              }
+ 261   5                                      }
+ 262   4                              }
+ 263   3                              tierinit();                                       //将列记录数组清空
+ 264   3                              tierdefine(1);          //行输出高电平 
+ 265   3                              row5=0;
+ 266   3                              _nop_();                   
+ 267   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 268   3                              row5=1;                  //将行0设置为高电平
+ 269   3                              for(i=0;i<6;i++)                //循环          
+ 270   3                              {
+ 271   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 272   4                                      {
+ 273   5                                              for(;j<6;j++)
+ 274   5                                              {
+ 275   6                                                      if(keydata[j]==0)
+ 276   6                                                      {
+ 277   7                                                              keydata[j]=(tierline[i]-1)*18+6;
+ 278   7                                                              break;
+ 279   7                                                      }         //则根据列与行的关系，计算其坐标
+ 280   6                                              }
+ 281   5                                      }
+ 282   4                              }
+ 283   3                              tierinit();                                       //将列记录数组清空
+ 284   3                              tierdefine(1);          //行输出高电平
+ 285   3                              row6=0;
+ 286   3                              _nop_();                   
+ 287   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 288   3                              row6=1;                  //将行0设置为高电平
+ 289   3                              for(i=0;i<6;i++)                //循环          
+ 290   3                              {
+ 291   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 292   4                                      {
+ 293   5                                              for(;j<6;j++)
+ 294   5                                              {
+ 295   6                                                      if(keydata[j]==0)
+ 296   6                                                      {
+ 297   7                                                              keydata[j]=(tierline[i]-1)*18+7;
+ 298   7                                                              break;
+ 299   7                                                      }         //则根据列与行的关系，计算其坐标
+ 300   6                                              }
+ 301   5                                      }
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 6   
+
+ 302   4                              }
+ 303   3                              tierinit();                                       //将列记录数组清空
+ 304   3                              tierdefine(1);          //行输出高电平
+ 305   3                              row7=0;
+ 306   3                              _nop_();                   
+ 307   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 308   3                              row7=1;                  //将行0设置为高电平
+ 309   3                              for(i=0;i<6;i++)                //循环          
+ 310   3                              {
+ 311   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 312   4                                      {
+ 313   5                                              for(;j<6;j++)
+ 314   5                                              {
+ 315   6                                                      if(keydata[j]==0)
+ 316   6                                                      {
+ 317   7                                                              keydata[j]=(tierline[i]-1)*18+8;
+ 318   7                                                              break;
+ 319   7                                                      }         //则根据列与行的关系，计算其坐标
+ 320   6                                              }
+ 321   5                                      }
+ 322   4                              }
+ 323   3                              tierinit();                                       //将列记录数组清空
+ 324   3                              tierdefine(1);          //行输出高电平 
+ 325   3                              row8=0;
+ 326   3                              _nop_();                   
+ 327   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 328   3                              row8=1;                  //将行0设置为高电平
+ 329   3                              for(i=0;i<6;i++)                //循环          
+ 330   3                              {
+ 331   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 332   4                                      {
+ 333   5                                              for(;j<6;j++)
+ 334   5                                              {
+ 335   6                                                      if(keydata[j]==0)
+ 336   6                                                      {
+ 337   7                                                              keydata[j]=(tierline[i]-1)*18+9;
+ 338   7                                                              break;
+ 339   7                                                      }         //则根据列与行的关系，计算其坐标
+ 340   6                                              }
+ 341   5                                      }
+ 342   4                              }
+ 343   3                              tierinit();                                       //将列记录数组清空
+ 344   3                              tierdefine(1);          //行输出高电平  
+ 345   3                              row9=0;
+ 346   3                              _nop_();                   
+ 347   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 348   3                              row9=1;                  //将行0设置为高电平
+ 349   3                              for(i=0;i<6;i++)                //循环          
+ 350   3                              {
+ 351   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 352   4                                      {
+ 353   5                                              for(;j<6;j++)
+ 354   5                                              {
+ 355   6                                                      if(keydata[j]==0)
+ 356   6                                                      {
+ 357   7                                                              keydata[j]=(tierline[i]-1)*18+10;
+ 358   7                                                              break;
+ 359   7                                                      }         //则根据列与行的关系，计算其坐标
+ 360   6                                              }
+ 361   5                                      }
+ 362   4                              }
+ 363   3                              tierinit();                                       //将列记录数组清空
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 7   
+
+ 364   3                              tierdefine(1);          //行输出高电平    
+ 365   3                              row10=0;
+ 366   3                              _nop_();                   
+ 367   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 368   3                              row10=1;                         //将行0设置为高电平
+ 369   3                              for(i=0;i<6;i++)                //循环          
+ 370   3                              {
+ 371   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 372   4                                      {
+ 373   5                                              for(;j<6;j++)
+ 374   5                                              {
+ 375   6                                                      if(keydata[j]==0)
+ 376   6                                                      {
+ 377   7                                                              keydata[j]=(tierline[i]-1)*18+11;
+ 378   7                                                              break;
+ 379   7                                                      }         //则根据列与行的关系，计算其坐标
+ 380   6                                              }
+ 381   5                                      }
+ 382   4                              }
+ 383   3                              tierinit();                                       //将列记录数组清空
+ 384   3                              tierdefine(1);          //行输出高电平    
+ 385   3                              row11=0;
+ 386   3                              _nop_();                   
+ 387   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 388   3                              row11=1;                         //将行0设置为高电平
+ 389   3                              for(i=0;i<6;i++)                //循环          
+ 390   3                              {
+ 391   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 392   4                                      {
+ 393   5                                              for(;j<6;j++)
+ 394   5                                              {
+ 395   6                                                      if(keydata[j]==0)
+ 396   6                                                      {
+ 397   7                                                              keydata[j]=(tierline[i]-1)*18+12;
+ 398   7                                                              break;
+ 399   7                                                      }         //则根据列与行的关系，计算其坐标
+ 400   6                                              }
+ 401   5                                      }
+ 402   4                              }
+ 403   3                              tierinit();                                       //将列记录数组清空
+ 404   3                              tierdefine(1);          //行输出高电平    
+ 405   3                              row12=0;
+ 406   3                              _nop_();                   
+ 407   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 408   3                              row12=1;                         //将行0设置为高电平
+ 409   3                              for(i=0;i<6;i++)                //循环          
+ 410   3                              {
+ 411   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 412   4                                      {
+ 413   5                                              for(;j<6;j++)
+ 414   5                                              {
+ 415   6                                                      if(keydata[j]==0)
+ 416   6                                                      {
+ 417   7                                                              keydata[j]=(tierline[i]-1)*18+13;
+ 418   7                                                              break;
+ 419   7                                                      }         //则根据列与行的关系，计算其坐标
+ 420   6                                              }
+ 421   5                                      }
+ 422   4                              }
+ 423   3                              tierinit();                                       //将列记录数组清空 
+ 424   3                              tierdefine(1);          //行输出高电平
+ 425   3                              row13=0;
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 8   
+
+ 426   3                              _nop_();                   
+ 427   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 428   3                              row13=1;                         //将行0设置为高电平
+ 429   3                              for(i=0;i<6;i++)                //循环          
+ 430   3                              {
+ 431   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 432   4                                      {
+ 433   5                                              for(;j<6;j++)
+ 434   5                                              {
+ 435   6                                                      if(keydata[j]==0)
+ 436   6                                                      {
+ 437   7                                                              keydata[j]=(tierline[i]-1)*18+14;
+ 438   7                                                              break;
+ 439   7                                                      }         //则根据列与行的关系，计算其坐标
+ 440   6                                              }
+ 441   5                                      }
+ 442   4                              }
+ 443   3                              tierinit();                                       //将列记录数组清空
+ 444   3                              tierdefine(1);          //行输出高电平    
+ 445   3                              row14=0;
+ 446   3                              _nop_();                   
+ 447   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 448   3                              row14=1;                         //将行0设置为高电平
+ 449   3                              for(i=0;i<6;i++)                //循环          
+ 450   3                              {
+ 451   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 452   4                                      {
+ 453   5                                              for(;j<6;j++)
+ 454   5                                              {
+ 455   6                                                      if(keydata[j]==0)
+ 456   6                                                      {
+ 457   7                                                              keydata[j]=(tierline[i]-1)*18+15;
+ 458   7                                                              break;
+ 459   7                                                      }         //则根据列与行的关系，计算其坐标
+ 460   6                                              }
+ 461   5                                      }
+ 462   4                              }
+ 463   3                              tierinit();                                       //将列记录数组清空
+ 464   3                              tierdefine(1);          //行输出高电平    
+ 465   3                              row15=0;
+ 466   3                              _nop_();                   
+ 467   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 468   3                              row15=1;                         //将行0设置为高电平
+ 469   3                              for(i=0;i<6;i++)                //循环          
+ 470   3                              {
+ 471   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 472   4                                      {
+ 473   5                                              for(;j<6;j++)
+ 474   5                                              {
+ 475   6                                                      if(keydata[j]==0)
+ 476   6                                                      {
+ 477   7                                                              keydata[j]=(tierline[i]-1)*18+16;
+ 478   7                                                              break;
+ 479   7                                                      }         //则根据列与行的关系，计算其坐标
+ 480   6                                              }
+ 481   5                                      }
+ 482   4                              }
+ 483   3                              tierinit();                                       //将列记录数组清空
+ 484   3                              tierdefine(1);          //行输出高电平  
+ 485   3                              row16=0;
+ 486   3                              _nop_();                   
+ 487   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 9   
+
+ 488   3                              row16=1;                         //将行0设置为高电平
+ 489   3                              for(i=0;i<6;i++)                //循环          
+ 490   3                              {
+ 491   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 492   4                                      {
+ 493   5                                              for(;j<6;j++)
+ 494   5                                              {
+ 495   6                                                      if(keydata[j]==0)
+ 496   6                                                      {
+ 497   7                                                              keydata[j]=(tierline[i]-1)*18+17;
+ 498   7                                                              break;
+ 499   7                                                      }         //则根据列与行的关系，计算其坐标
+ 500   6                                              }
+ 501   5                                      }
+ 502   4                              }
+ 503   3                              tierinit();                                       //将列记录数组清空
+ 504   3                              tierdefine(1);          //行输出高电平    
+ 505   3                              
+ 506   3                              
+ 507   3                      //      for(i=0;i<6;i++)
+ 508   3                      //      {
+ 509   3                      //              if(keydata[i]==1)
+ 510   3                      //              keydata[i]=0;
+ 511   3              //              }
+ 512   3                              row0=0;
+ 513   3                              _nop_();                   
+ 514   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 515   3                              row0=1;                  //将行0设置为高电平
+ 516   3                              for(i=0;i<6;i++)                //循环          
+ 517   3                              {
+ 518   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 519   4                                      {
+ 520   5                                              for(;j<6;j++)
+ 521   5                                              {
+ 522   6                                                      if(keydata[j]==0)
+ 523   6                                                      {
+ 524   7                                                              keydata[j]=(tierline[i]-1)*18+1;
+ 525   7                                                              break;
+ 526   7                                                      }         //则根据列与行的关系，计算其坐标
+ 527   6                                              }
+ 528   5                                      }
+ 529   4                              }
+ 530   3                              tierinit();                                       //将列记录数组清空 
+ 531   3                              tierdefine(1);          //行输出高电平
+ 532   3      
+ 533   3                              row1=0;
+ 534   3                              _nop_();                   
+ 535   3                              tierjudge();                    //检测有无列为低电平，若有，则记录下来     
+ 536   3                              row1=1;                  //将行0设置为高电平
+ 537   3                              for(i=0;i<6;i++)                //循环          
+ 538   3                              {
+ 539   4                                      if(tierline[i]!=0)               //判断该列是否检测到低电平，若有
+ 540   4                                      {
+ 541   5                                              for(;j<6;j++)
+ 542   5                                              {
+ 543   6                                                      if(keydata[j]==0)
+ 544   6                                                      {
+ 545   7                                                              keydata[j]=(tierline[i]-1)*18+2;
+ 546   7                                                              break;
+ 547   7                                                      }         //则根据列与行的关系，计算其坐标
+ 548   6                                              }
+ 549   5                                      }
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 10  
+
+ 550   4                              }
+ 551   3                              tierinit();                                       //将列记录数组清空
+ 552   3                              tierdefine(1);          //行输出高电平                                                  
+ 553   3                      }
+ 554   2              }
+ 555   1      
+ 556   1      
+ 557   1      
+ 558   1      }
+ 559          void datatokey()
+ 560          {
+ 561   1              unsigned char i;
+ 562   1              for(i=0;i<6;i++)
+ 563   1              {
+ 564   2                      if(keydata[i]==0xE0)
+ 565   2                      senddata[5]++;
+ 566   2                      else if(keydata[i]==0xE1)
+ 567   2                      senddata[5]=senddata[5]+2;
+ 568   2                      else if(keydata[i]==0xE2)
+ 569   2                      senddata[5]=senddata[5]+4;
+ 570   2                      else if(keydata[i]==0xE3)
+ 571   2                      senddata[5]=senddata[5]+8;
+ 572   2                      else if(keydata[i]==0xE4)
+ 573   2                      senddata[5]=senddata[5]+16;
+ 574   2                      else if(keydata[i]==0xE5)
+ 575   2                      senddata[5]=senddata[5]+32;
+ 576   2                      else if(keydata[i]==0xE6)
+ 577   2                      senddata[5]=senddata[5]+64;
+ 578   2                      else if(keydata[i]==0xE7)
+ 579   2                      senddata[5]=senddata[5]+128;
+ 580   2                      else
+ 581   2                      senddata[i+7]=key[keydata[i]];
+ 582   2                      senddata[3]=0x02;
+ 583   2                      senddata[4]=0x08;
+ 584   2                      senddata[13]=12+senddata[5]+senddata[7]+senddata[8]+senddata[9]+senddata[10]+senddata[11]+senddata[12];
+ 585   2              }       
+ 586   1      }
+ 587          void datasend()
+ 588          {
+ 589   1              unsigned char i;
+ 590   1                      for(i=0;i<14;i++)
+ 591   1                      {
+ 592   2                              SBUF = senddata[i];   //将要发送的数据放入到发送寄存器
+ 593   2                              while(!TI);               //等待发送数据完成
+ 594   2                              TI=0;                     //清除发送完成标志位;
+ 595   2                      }//keydata数据传输      
+ 596   1      }
+ 597          
+ 598          void datainit()
+ 599          {
+ 600   1              unsigned char i;
+ 601   1              for(i=0;i<14;i++)
+ 602   1              {
+ 603   2                      senddata[i]=senddatainit[i];            
+ 604   2              }
+ 605   1              for(i=0;i<6;i++)
+ 606   1              {
+ 607   2                      keydata[i]=0;
+ 608   2              }       
+ 609   1      }
+ 610          /*void int0() interrupt 0
+ 611          {
+C51 COMPILER V9.01   KEYBOARD                                                              05/02/2021 22:02:14 PAGE 11  
+
+ 612                  unsigned char i;
+ 613                  EX0=0;
+ 614                  for(i=0;i<4;i++)          
+ 615                  {
+ 616                          SBUF = resetdata[i];   //将要发送的数据放入到发送寄存器
+ 617          //              S4BUF = resetdata[i];
+ 618                          while(TI==0);             //等待发送数据完成
+ 619                          TI=0;                     //清除发送完成标志位;
+ 620          //              while(S4CON & S4TI==1);
+ 621          //              S4CON&=~0x10;
+ 622                  }
+ 623                  for(i=0;i<14;i++)
+ 624                  {
+ 625                          SBUF = senddatainit[i];   //将要发送的数据放入到发送寄存器
+ 626          //              S4BUF = senddatainit[i];
+ 627                          while(TI==0);             //等待发送数据完成
+ 628                          TI=0;                     //清除发送完成标志位;
+ 629          //              while(S4CON & S4TI==1);
+ 630          //              S4CON&=~0x10;
+ 631                  }
+ 632                  EX0=1;  
+ 633          }          */
+ 634          void timer0() interrupt 1                 //0.05秒一次
+ 635          {
+ 636   1              TL0 = 0x91;             
+ 637   1              TH0 = 0x91;             
+ 638   1              a++;    
+ 639   1              if(a==10000)
+ 640   1              {       
+ 641   2                      a=0;
+ 642   2                      KeyScan();
+ 643   2                      datatokey();
+ 644   2                      datasend();
+ 645   2                      datainit();
+ 646   2              }       
+ 647   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1611    ----
+   CONSTANT SIZE    =    127    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     28    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
