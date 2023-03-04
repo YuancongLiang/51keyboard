@@ -1,6 +1,8 @@
 # 51keyboard
 stc15单片机做的一个键盘
 
+项目详情请参看：https://diduseemyelk.github.io/Lillia.github.io/2021/05/09/51-dan-pian-ji-jian-pan/
+
 1.3d打印件有部分设计不合理，如果直接打印会装不进去，需要进行内部切割
 
 2.键盘只支持到六键无冲，并且响应较慢，若想提高反应速度，可以通过提高波特率并降低中断1函数timer0的a值
